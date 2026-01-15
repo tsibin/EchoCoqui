@@ -190,6 +190,7 @@ class EchoCoquiApp(tk.Tk):
                     raise ValueError("No audio generated")
 
                 final_audio = np.concatenate(audio_parts)
+                final_audio = np.clip(final_audio * 1.5, -1.0, 1.0)
                 sf.write(str(out), final_audio, int(sample_rate))
 
                 self._worker_queue.put(("done", str(out)))
