@@ -2,6 +2,7 @@ import threading
 import queue
 import re
 from pathlib import Path
+import json
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -31,6 +32,9 @@ class EchoCoquiApp(tk.Tk):
     def __init__(self):
         super().__init__()
 
+        self._settings_path = Path.home() / ".echocoqui_settings.json"
+        self._settings: dict[str, object] = self._load_settings()
+
         self.title("EchoCoqui")
         self.minsize(900, 650)
 
@@ -40,9 +44,12 @@ class EchoCoquiApp(tk.Tk):
         self._models: list[str] = []
 
         self._build_ui()
+        self._apply_settings()
         self._schedule_queue_pump()
 
         self._load_models_async()
+
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -102,6 +109,52 @@ class EchoCoquiApp(tk.Tk):
         self.status_var = tk.StringVar(value="Ready")
         ttk.Label(bottom, textvariable=self.status_var).grid(row=0, column=2, sticky="e")
 
+    def _load_settings(self) -> dict[str, object]:
+        try:
+            if self._settings_path.exists():
+                return json.loads(self._settings_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        return {}
+
+    def _apply_settings(self) -> None:
+        try:
+            geom = self._settings.get("window_geometry")
+            if isinstance(geom, str) and geom:
+                self.geometry(geom)
+        except Exception:
+            pass
+
+        out = self._settings.get("output_path")
+        if isinstance(out, str) and out:
+            self.output_var.set(out)
+
+        model = self._settings.get("voice_model")
+        if isinstance(model, str) and model:
+            self.model_var.set(model)
+
+        text_value = self._settings.get("text")
+        if isinstance(text_value, str) and text_value:
+            self.text.delete("1.0", "end")
+            self.text.insert("1.0", text_value)
+
+    def _save_settings(self) -> None:
+        data = {
+            "window_geometry": self.geometry(),
+            "output_path": self.output_var.get(),
+            "voice_model": self.model_var.get(),
+            "text": self.text.get("1.0", "end").rstrip("\n"),
+        }
+
+        try:
+            self._settings_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _on_close(self) -> None:
+        self._save_settings()
+        self.destroy()
+
     def _set_busy(self, busy: bool) -> None:
         if busy:
             self.start_button.configure(state="disabled")
@@ -133,7 +186,9 @@ class EchoCoquiApp(tk.Tk):
         self._models = list(HARDCODED_VOICES)
         self._models.sort()
         self.model_combo.configure(values=self._models)
-        if not self.model_var.get() and self._models:
+        if (not self.model_var.get()) and self._models:
+            self.model_var.set(self._models[0])
+        elif self.model_var.get() and self.model_var.get() not in self._models and self._models:
             self.model_var.set(self._models[0])
         self.status_var.set("Ready")
         self._set_busy(False)
