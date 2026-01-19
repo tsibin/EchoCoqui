@@ -51,7 +51,7 @@ class EchoCoquiApp(tk.Tk):
         root = ttk.Frame(self, padding=12)
         root.grid(row=0, column=0, sticky="nsew")
         root.columnconfigure(0, weight=1)
-        root.rowconfigure(1, weight=1)
+        root.rowconfigure(2, weight=1)
 
         top = ttk.Frame(root)
         top.grid(row=0, column=0, sticky="ew")
