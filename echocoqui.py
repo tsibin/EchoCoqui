@@ -24,6 +24,7 @@ HARDCODED_VOICES = [
 ]
 
 DEFAULT_TTS_MODEL_NAME = "tts_models/en/vctk/vits"
+OUTPUT_GAIN_DB = 9.0
 
 
 class EchoCoquiApp(tk.Tk):
@@ -190,8 +191,22 @@ class EchoCoquiApp(tk.Tk):
                     raise ValueError("No audio generated")
 
                 final_audio = np.concatenate(audio_parts)
-                final_audio = np.clip(final_audio * 1.5, -1.0, 1.0)
-                sf.write(str(out), final_audio, int(sample_rate))
+                gain = float(10 ** (OUTPUT_GAIN_DB / 20.0))
+                target_rms = float(_rms(final_audio) * gain)
+
+                boosted = final_audio * gain
+                limited = np.tanh(boosted)
+
+                limited_rms = float(_rms(limited))
+                limited_peak = float(np.max(np.abs(limited))) if limited.size else 0.0
+
+                if limited_rms > 0.0 and limited_peak > 0.0:
+                    makeup = target_rms / limited_rms
+                    max_makeup = 0.99 / limited_peak
+                    final_audio = limited * min(makeup, max_makeup)
+                else:
+                    final_audio = limited
+                sf.write(str(out), final_audio, int(sample_rate), subtype="PCM_16")
 
                 self._worker_queue.put(("done", str(out)))
             except Exception as e:
@@ -276,6 +291,12 @@ def _chunk_text(text: str, max_chars: int) -> list[str]:
         chunks.append(current)
 
     return chunks
+
+
+def _rms(x: np.ndarray) -> float:
+    if x.size == 0:
+        return 0.0
+    return float(np.sqrt(np.mean(np.square(x, dtype=np.float64))))
 
 
 def main() -> None:
