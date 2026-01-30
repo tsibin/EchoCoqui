@@ -1,5 +1,7 @@
 # EchoCoqui
 Neural text-to-speech utility in Python using Coqui TTS. Generate high-quality speech audio offline from text to audio file.
+<img width="906" height="688" alt="image" src="https://github.com/user-attachments/assets/6c3111f1-dbc2-4c2e-bbf9-18e83f741f6f" />
+
 
 ## Requirements
 Python 3.11.x (Coqui TTS compatible).
