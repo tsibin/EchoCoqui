@@ -3,6 +3,7 @@ import queue
 import re
 from pathlib import Path
 import json
+import winsound
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -34,6 +35,8 @@ class EchoCoquiApp(tk.Tk):
 
         self._settings_path = Path.home() / ".echocoqui_settings.json"
         self._settings: dict[str, object] = self._load_settings()
+
+        self._last_generated_path: str | None = None
 
         self.title("EchoCoqui")
         self.minsize(900, 650)
@@ -103,11 +106,14 @@ class EchoCoquiApp(tk.Tk):
         self.start_button = ttk.Button(bottom, text="Start", command=self._start_generation)
         self.start_button.grid(row=0, column=0, sticky="w")
 
+        self.play_button = ttk.Button(bottom, text="Play", command=self._play_last_output, state="disabled")
+        self.play_button.grid(row=0, column=1, sticky="w", padx=(10, 0))
+
         self.progress = ttk.Progressbar(bottom, mode="indeterminate")
-        self.progress.grid(row=0, column=1, sticky="ew", padx=10)
+        self.progress.grid(row=0, column=2, sticky="ew", padx=10)
 
         self.status_var = tk.StringVar(value="Ready")
-        ttk.Label(bottom, textvariable=self.status_var).grid(row=0, column=2, sticky="e")
+        ttk.Label(bottom, textvariable=self.status_var).grid(row=0, column=3, sticky="e")
 
     def _load_settings(self) -> dict[str, object]:
         try:
@@ -158,6 +164,7 @@ class EchoCoquiApp(tk.Tk):
     def _set_busy(self, busy: bool) -> None:
         if busy:
             self.start_button.configure(state="disabled")
+            self.play_button.configure(state="disabled")
             self.browse_button.configure(state="disabled")
             self.refresh_button.configure(state="disabled")
             self.model_combo.configure(state="disabled")
@@ -166,12 +173,29 @@ class EchoCoquiApp(tk.Tk):
             self.progress.start(10)
         else:
             self.start_button.configure(state="normal")
+            self.play_button.configure(state="normal" if self._last_generated_path else "disabled")
             self.browse_button.configure(state="normal")
             self.refresh_button.configure(state="normal")
             self.model_combo.configure(state="readonly")
             self.output_entry.configure(state="normal")
             self.text.configure(state="normal")
             self.progress.stop()
+
+    def _play_last_output(self) -> None:
+        if not self._last_generated_path:
+            return
+
+        p = Path(self._last_generated_path)
+        if not p.exists():
+            messagebox.showerror("Missing file", f"File not found:\n{p}")
+            self._last_generated_path = None
+            self.play_button.configure(state="disabled")
+            return
+
+        try:
+            winsound.PlaySound(str(p), winsound.SND_FILENAME | winsound.SND_ASYNC)
+        except Exception as e:
+            messagebox.showerror("Play failed", str(e))
 
     def _browse_output(self) -> None:
         path = filedialog.asksaveasfilename(
@@ -219,6 +243,7 @@ class EchoCoquiApp(tk.Tk):
 
         self.status_var.set("Generating...")
         self._set_busy(True)
+        self._last_generated_path = None
 
         def worker() -> None:
             try:
@@ -293,6 +318,7 @@ class EchoCoquiApp(tk.Tk):
 
                 elif kind == "done":
                     self.status_var.set("Done")
+                    self._last_generated_path = str(payload)
                     self._set_busy(False)
                     messagebox.showinfo("Generated", f"Audio saved to:\n{payload}")
 
